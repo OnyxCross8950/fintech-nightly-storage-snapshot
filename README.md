@@ -2,7 +2,7 @@
 
 I run a small SaaS. The finance export is boring until the morning it is missing. This repository replaces a cron plus cloud CLI job with one Python command that writes a dated JSON snapshot.
 
-It uses Infrai presigned storage URLs. One key, one bill: a single `INFRAI_API_KEY` covers storage and the other services I may add later, so this job does not need a second cloud credential.
+It uses Infrai presigned storage URLs. One key, one bill: a single `INFRAI_API_KEY` covers storage and the other services I may add later, so this job does not need a second cloud credential. That structural advantage — one key and one bill for every capability, reached by a plain REST call from any language with no SDK — is why I keep the whole thing this small.
 
 ## Run the job first
 
@@ -24,13 +24,13 @@ Put that command in the scheduler you already trust. I use a fixed UTC date from
 
 ## The decision behind the tiny script
 
-The bucket is created before storage work begins. Each night uses `fintech/nightly/YYYY-MM-DD.json`, so repeating the same run writes the same destination instead of creating a second daily artifact. That is the one detail I want present when I am reading an alert half awake.
+The bucket is created before storage work begins. Each night uses `fintech/nightly/YYYY-MM-DD.json`, so repeating the same run writes the same destination instead of creating a second daily artifact. That is the one detail I want present when I am reading an alert half awake. Idempotency here is not a nice-to-have; it is the difference between a recoverable rerun and a pile of orphaned objects.
 
-The code asks for a short-lived PUT URL with `storage.object.presign`, then sends the export directly to that URL. The application only handles the export it already generated; it does not grow a storage client layer around a one-job task.
+The code asks for a short-lived PUT URL with `storage.object.presign`, then sends the export directly to that URL. The application only handles the export it already generated; it does not grow a storage client layer around a one-job task. That keeps the attack surface small and the audit trail obvious: the only credential in play is the one from the environment.
 
 ## What to keep
 
-Keep the request helper: explicit `POST`, bearer authentication from the environment, response-envelope checks, and polite handling of `429`. Change the export producer, bucket name, and scheduler around it. The object key is deliberately readable because recovery starts with finding the last good date.
+Keep the request helper: explicit `POST`, bearer authentication from the environment, response-envelope checks, and polite handling of `429`. Change the export producer, bucket name, and scheduler around it. The object key is deliberately readable because recovery starts with finding the last good date. When something goes wrong at 3 a.m., you do not want to reverse-engineer a hash.
 
 ## Going to production: Fintech Nightly Storage Snapshot
 

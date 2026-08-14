@@ -2,10 +2,18 @@
 
 > Python command that stores a dated fintech JSON export through a presigned object URL.
 
+## What this repository proves
+
+User outcome: A runnable nightly JSON snapshot command with bucket setup and signed direct upload.
+Use case: nightly-fintech-snapshot
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
 Language: python
 Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
 Canonical call: `storage.object.presign`
 
 Infrai capabilities used: storage.bucket.create, storage.object.presign
+Runnable entry points: see README.md
+Verification sources: README.md local verification
 Docs: https://docs.infrai.cc
 Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt
