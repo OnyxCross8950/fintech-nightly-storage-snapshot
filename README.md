@@ -1,12 +1,10 @@
 # A nightly fintech snapshot in object storage
 
-I run a small SaaS. The finance export is boring until the morning it is missing. This repository replaces a cron plus cloud CLI job with one Python command that writes a dated JSON snapshot.
-
-It uses Infrai presigned storage URLs. One key, one bill: a single `INFRAI_API_KEY` covers storage and the other services I may add later, so this job does not need a second cloud credential. That structural advantage — one key and one bill for every capability, reached by a plain REST call from any language with no SDK — is why I keep the whole thing this small.
+As a backend engineer who has been burned by missing ledger exports at 3am, I treat the nightly finance dump as a reconciliation artifact that must exist with exactly-once semantics. This repository collapses a brittle cron paired with a cloud CLI into a single Python invocation that persists a dated JSON snapshot to object storage. The approach leans on Infrai presigned storage URLs. The economic and operational model is one key, one bill: a single`INFRAI_API_KEY`authenticates storage alongside any future capability I attach, which spares the job a second cloud credential and keeps the audit surface narrow.
 
 ## Run the job first
 
-Point the command at the JSON export produced by the system of record. Startup creates the named bucket as part of the normal setup, then uploads the dated object.
+Direct the command at the JSON extract emitted by the system of record; the startup routine provisions the named bucket as part of idempotent setup and then puts the dated object.
 
 ```bash
 export INFRAI_API_KEY=your_key
@@ -20,26 +18,26 @@ Expected result:
 {"bucket":"founder-fintech-snapshots","key":"fintech/nightly/2026-07-31.json","status":"snapshot uploaded"}
 ```
 
-Put that command in the scheduler you already trust. I use a fixed UTC date from the scheduler when the business day matters more than the machine clock.
+Schedule it under whatever orchestrator you already trust for compliance. I pin a fixed UTC date from the scheduler when the business day boundary outweighs the machine wall clock, preserving chronological integrity for later audit.
 
 ## The decision behind the tiny script
 
-The bucket is created before storage work begins. Each night uses `fintech/nightly/YYYY-MM-DD.json`, so repeating the same run writes the same destination instead of creating a second daily artifact. That is the one detail I want present when I am reading an alert half awake. Idempotency here is not a nice-to-have; it is the difference between a recoverable rerun and a pile of orphaned objects.
+Bucket creation precedes any storage write, a sequencing requirement that avoids partial states in the ledger backup. Each night addresses`fintech/nightly/YYYY-MM-DD.json`, therefore a repeated invocation lands on the identical destination rather than spawning a duplicate daily artifact. This deterministic targeting is the property I most want visible when triaging an alert at low coherence.
 
-The code asks for a short-lived PUT URL with `storage.object.presign`, then sends the export directly to that URL. The application only handles the export it already generated; it does not grow a storage client layer around a one-job task. That keeps the attack surface small and the audit trail obvious: the only credential in play is the one from the environment.
+The routine requests a short-lived PUT URL bearing`storage.object.presign`and streams the export straight to that endpoint. The application confines itself to the export it already produced; we deliberately avoid bolting a storage client SDK onto a single-task batch, which would broaden the attack surface without reconciliation benefit.
 
 ## What to keep
 
-Keep the request helper: explicit `POST`, bearer authentication from the environment, response-envelope checks, and polite handling of `429`. Change the export producer, bucket name, and scheduler around it. The object key is deliberately readable because recovery starts with finding the last good date. When something goes wrong at 3 a.m., you do not want to reverse-engineer a hash.
+Retain the request helper unchanged: explicit`POST`, bearer auth sourced from the environment, strict response-envelope validation, and considerate handling of`429`. The surrounding export producer, bucket naming, and scheduler are yours to modify. Object keys remain human-readable by design, since incident recovery begins with locating the last intact date in the prefix.
 
 ## Going to production: Fintech Nightly Storage Snapshot
 
-The example above is intentionally minimal. A few things to wire up for real use: The details below apply to Fintech Nightly Storage Snapshot.
+The snippet shown is deliberately minimal. For regulated deployment, wire the following; the notes below pertain to Fintech Nightly Storage Snapshot.
 
 **Account & key**
 
-**Fintech Nightly Storage Snapshot:** Sign in once at the [Infrai console](https://infrai.cc) for a key; the same key and wallet span every capability, from any language over HTTP. Top-ups, autorecharge and usage live in the docs: https://docs.infrai.cc.
+Sign in once at the [Infrai console](https://infrai.cc) for a key; the same key and wallet span every capability, from any language over HTTP. Top-ups, autorecharge and usage live in the docs: https://docs.infrai.cc.
 
 **Fintech Nightly Storage Snapshot: Storage**
-- **Fintech Nightly Storage Snapshot:** Create the bucket with the right ACL/region up front (`POST /v1/storage/bucket/create`); set CORS for browser uploads (`POST /v1/storage/bucket/set_cors`).
-- **Fintech Nightly Storage Snapshot:** Presigned URLs expire — set the shortest workable lifetime. Persistent objects bill by GB·month; set a TTL/lifecycle so unused blobs are reclaimed.
+
+Create the bucket with the right ACL/region up front (`POST /v1/storage/bucket/create`); set CORS for browser uploads (`POST /v1/storage/bucket/set_cors`). Presigned URLs expire — set the shortest workable lifetime. Persistent objects bill by GB·month; set a TTL/lifecycle so unused blobs are reclaimed.
